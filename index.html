@@ -466,7 +466,7 @@
     </div>
 
     <script>
-        // Game constants - ИЗМЕНЕНО: теперь линии лопаются от 4 шаров
+        // Game constants
         const BOARD_SIZE = 10;
         const COLORS = [
             '#FF3366', // Ярко-красный
@@ -479,7 +479,7 @@
         ];
         const INITIAL_COLORS = 5;
         const MAX_COLORS = 7;
-        const LINE_LENGTH = 4; // ИЗМЕНЕНО: было 5, стало 4
+        const LINE_LENGTH = 4; // Изменено с 5 на 4
         const SCORE_PER_BALL = 10;
         const SCORE_MULTIPLIER = 2;
 
@@ -500,8 +500,7 @@
             dragStartCell: null,
             touchStartTime: 0,
             touchStartElement: null,
-            lastTouchX: 0,
-            lastTouchY: 0
+            isTouchDevice: false
         };
 
         // DOM elements
@@ -519,7 +518,7 @@
         const difficultyProgress = document.getElementById('difficultyProgress');
 
         // Audio context for sound effects
-        let audioContext;
+        let audioContext = null;
         let soundEnabled = true;
 
         // Initialize game
@@ -530,65 +529,8 @@
             updateUI();
             updateDifficulty();
             
-            // Initialize audio context
-            initAudio();
-        }
-
-        // Initialize audio
-        function initAudio() {
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            } catch (e) {
-                console.log("Web Audio API not supported");
-                soundEnabled = false;
-                soundToggle.innerHTML = '<span>🔇</span> ЗВУК НЕДОСТУПЕН';
-            }
-        }
-
-        // Play sound effect
-        function playSound(frequency, duration = 0.2, type = 'sine') {
-            if (!soundEnabled || !gameState.soundEnabled || !audioContext) return;
-            
-            try {
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = frequency;
-                oscillator.type = type;
-                
-                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-                
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + duration);
-            } catch (e) {
-                console.log("Error playing sound:", e);
-            }
-        }
-
-        // Play select sound
-        function playSelectSound() {
-            playSound(523.25, 0.1, 'sine'); // C5
-        }
-
-        // Play move sound
-        function playMoveSound() {
-            playSound(659.25, 0.15, 'triangle'); // E5
-        }
-
-        // Play explode sound
-        function playExplodeSound() {
-            playSound(220, 0.3, 'sawtooth'); // A3
-            setTimeout(() => playSound(174.61, 0.2, 'square'), 50); // F3
-        }
-
-        // Play game over sound
-        function playGameOverSound() {
-            playSound(174.61, 0.5, 'square'); // F3
-            setTimeout(() => playSound(130.81, 0.4, 'sawtooth'), 100); // C3
+            // Detect touch device
+            gameState.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         }
 
         // Create game board
@@ -601,23 +543,25 @@
                     cell.dataset.row = row;
                     cell.dataset.col = col;
                     
-                    // Touch events for mobile - УПРОЩЕННАЯ ЛОГИКА
-                    cell.addEventListener('touchstart', handleTouchStart, { passive: false });
+                    // Touch events for mobile
+                    cell.addEventListener('touchstart', handleCellTouchStart, { passive: false });
+                    cell.addEventListener('touchend', handleCellTouchEnd, { passive: false });
+                    cell.addEventListener('touchmove', handleCellTouchMove, { passive: false });
+                    cell.addEventListener('touchcancel', handleCellTouchCancel, { passive: false });
                     
                     // Mouse events for desktop
-                    cell.addEventListener('mousedown', handleMouseDown);
+                    cell.addEventListener('mousedown', handleCellMouseDown);
                     cell.addEventListener('click', handleCellClick);
                     
                     gameBoard.appendChild(cell);
                 }
             }
             
-            // Add global event listeners
+            // Add global event listeners for drag
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
-            document.addEventListener('touchmove', handleTouchMove, { passive: false });
-            document.addEventListener('touchend', handleTouchEnd, { passive: false });
-            document.addEventListener('touchcancel', handleTouchCancel, { passive: false });
+            document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+            document.addEventListener('touchend', handleGlobalTouchEnd, { passive: false });
         }
 
         // Generate next balls
@@ -686,245 +630,16 @@
                     const ball = document.createElement('div');
                     ball.className = 'ball';
                     ball.style.background = COLORS[ballColor];
-                    ball.dataset.row = row;
-                    ball.dataset.col = col;
                     cell.appendChild(ball);
                 }
             });
         }
 
-        // Handle touch start - УПРОЩЕННАЯ ВЕРСИЯ
-        function handleTouchStart(e) {
-            e.preventDefault();
-            if (gameState.gameOver) return;
-            
-            const touch = e.touches[0];
-            const cell = e.currentTarget;
-            const row = parseInt(cell.dataset.row);
-            const col = parseInt(cell.dataset.col);
-            
-            gameState.touchStartTime = Date.now();
-            gameState.touchStartElement = cell;
-            gameState.lastTouchX = touch.clientX;
-            gameState.lastTouchY = touch.clientY;
-            
-            // Store touch position for potential drag
-            if (gameState.board[row][col] !== null) {
-                // Start potential drag
-                gameState.isDragging = true;
-                gameState.dragStartCell = {row, col};
-                
-                // Select the ball immediately
-                selectBall(row, col);
-                playSelectSound();
-                
-                // Visual feedback
-                const ball = cell.querySelector('.ball');
-                if (ball) {
-                    ball.style.transform = 'scale(1.1)';
-                }
-            }
-        }
-
-        // Handle touch move
-        function handleTouchMove(e) {
-            if (!gameState.isDragging || gameState.gameOver) return;
-            
-            e.preventDefault();
-            const touch = e.touches[0];
-            
-            // Update last touch position
-            gameState.lastTouchX = touch.clientX;
-            gameState.lastTouchY = touch.clientY;
-            
-            // Update dragging ball if exists
-            if (gameState.draggingBall) {
-                gameState.draggingBall.style.left = touch.clientX + 'px';
-                gameState.draggingBall.style.top = touch.clientY + 'px';
-            }
-        }
-
-        // Handle touch end - ОСНОВНАЯ ЛОГИКА
-        function handleTouchEnd(e) {
-            e.preventDefault();
-            
-            const touchTime = Date.now() - gameState.touchStartTime;
-            const isTap = touchTime < 300; // Tap if less than 300ms
-            
-            if (!gameState.dragStartCell) {
-                // Simple tap on empty cell
-                if (gameState.selectedBall && isTap) {
-                    const cell = gameState.touchStartElement;
-                    const row = parseInt(cell.dataset.row);
-                    const col = parseInt(cell.dataset.col);
-                    
-                    if (gameState.board[row][col] === null) {
-                        const {row: startRow, col: startCol} = gameState.selectedBall;
-                        moveBall(startRow, startCol, row, col);
-                    }
-                }
-                resetTouchState();
-                return;
-            }
-            
-            const {row: startRow, col: startCol} = gameState.dragStartCell;
-            
-            // Find the cell under the touch
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            if (element) {
-                const cell = element.closest('.cell');
-                if (cell) {
-                    const row = parseInt(cell.dataset.row);
-                    const col = parseInt(cell.dataset.col);
-                    
-                    if (gameState.board[row][col] === null) {
-                        // Valid move
-                        moveBall(startRow, startCol, row, col);
-                    } else if (row !== startRow || col !== startCol) {
-                        // Clicked on different ball - select it
-                        selectBall(row, col);
-                        playSelectSound();
-                    }
-                }
-            }
-            
-            resetTouchState();
-        }
-
-        // Handle touch cancel
-        function handleTouchCancel(e) {
-            e.preventDefault();
-            resetTouchState();
-        }
-
-        // Reset touch state
-        function resetTouchState() {
-            // Reset visual feedback
-            if (gameState.dragStartCell) {
-                const {row, col} = gameState.dragStartCell;
-                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                if (cell) {
-                    const ball = cell.querySelector('.ball');
-                    if (ball) {
-                        ball.style.transform = '';
-                    }
-                }
-            }
-            
-            // Remove dragging ball
-            if (gameState.draggingBall) {
-                gameState.draggingBall.remove();
-                gameState.draggingBall = null;
-            }
-            
-            // Clear highlights
-            document.querySelectorAll('.cell.path').forEach(cell => {
-                cell.classList.remove('path');
-            });
-            
-            // Reset state
-            gameState.isDragging = false;
-            gameState.dragStartCell = null;
-            gameState.touchStartElement = null;
-        }
-
-        // Handle mouse down
-        function handleMouseDown(e) {
-            if (gameState.gameOver) return;
-            
-            const cell = e.currentTarget;
-            const row = parseInt(cell.dataset.row);
-            const col = parseInt(cell.dataset.col);
-            
-            if (gameState.board[row][col] !== null) {
-                // Start dragging
-                gameState.isDragging = true;
-                gameState.dragStartCell = {row, col};
-                
-                // Create dragging ball
-                const ballColor = gameState.board[row][col];
-                gameState.draggingBall = document.createElement('div');
-                gameState.draggingBall.className = 'dragging-ball';
-                gameState.draggingBall.style.background = COLORS[ballColor];
-                gameState.draggingBall.style.left = e.clientX + 'px';
-                gameState.draggingBall.style.top = e.clientY + 'px';
-                document.body.appendChild(gameState.draggingBall);
-                
-                // Hide original ball
-                const ball = cell.querySelector('.ball');
-                if (ball) {
-                    ball.style.opacity = '0.3';
-                }
-                
-                // Select the ball
-                selectBall(row, col);
-                playSelectSound();
-            }
-        }
-
-        // Handle mouse move
-        function handleMouseMove(e) {
-            if (!gameState.isDragging || !gameState.draggingBall) return;
-            
-            gameState.draggingBall.style.left = e.clientX + 'px';
-            gameState.draggingBall.style.top = e.clientY + 'px';
-            
-            // Highlight possible targets
-            highlightPossibleTargets();
-        }
-
-        // Handle mouse up
-        function handleMouseUp(e) {
-            if (!gameState.isDragging || !gameState.dragStartCell) return;
-            
-            const {row: startRow, col: startCol} = gameState.dragStartCell;
-            
-            // Remove dragging ball
-            if (gameState.draggingBall) {
-                gameState.draggingBall.remove();
-                gameState.draggingBall = null;
-            }
-            
-            // Find the cell under the cursor
-            const element = document.elementFromPoint(e.clientX, e.clientY);
-            if (element) {
-                const cell = element.closest('.cell');
-                if (cell) {
-                    const row = parseInt(cell.dataset.row);
-                    const col = parseInt(cell.dataset.col);
-                    
-                    // Restore original ball opacity
-                    const startCell = document.querySelector(`.cell[data-row="${startRow}"][data-col="${startCol}"]`);
-                    if (startCell) {
-                        const ball = startCell.querySelector('.ball');
-                        if (ball) {
-                            ball.style.opacity = '1';
-                        }
-                    }
-                    
-                    if (gameState.board[row][col] === null) {
-                        // Valid move
-                        moveBall(startRow, startCol, row, col);
-                    }
-                }
-            }
-            
-            // Clear highlights
-            document.querySelectorAll('.cell.path').forEach(cell => {
-                cell.classList.remove('path');
-            });
-            
-            gameState.isDragging = false;
-            gameState.dragStartCell = null;
-        }
-
-        // Handle cell click (simple selection)
-        function handleCellClick(e) {
+        // Handle cell click (for simple selection)
+        function handleCellClick(event) {
             if (gameState.gameOver || gameState.isDragging) return;
             
-            const cell = e.currentTarget;
+            const cell = event.currentTarget;
             const row = parseInt(cell.dataset.row);
             const col = parseInt(cell.dataset.col);
             
@@ -935,15 +650,192 @@
                 } else {
                     // Select new ball
                     selectBall(row, col);
-                    playSelectSound();
                 }
             } else {
                 // Select ball if exists
                 if (gameState.board[row][col] !== null) {
                     selectBall(row, col);
-                    playSelectSound();
                 }
             }
+        }
+
+        // Touch handling for mobile
+        function handleCellTouchStart(event) {
+            event.preventDefault();
+            if (gameState.gameOver) return;
+            
+            const cell = event.currentTarget;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            
+            gameState.touchStartTime = Date.now();
+            gameState.touchStartElement = cell;
+            
+            if (gameState.board[row][col] !== null) {
+                // Start dragging
+                gameState.isDragging = true;
+                gameState.dragStartCell = {row, col};
+                startDragging(row, col, event.touches[0]);
+                
+                // Visual feedback
+                cell.style.transform = 'scale(0.95)';
+            }
+        }
+
+        function handleCellTouchMove(event) {
+            if (!gameState.isDragging) return;
+            event.preventDefault();
+            
+            if (event.touches.length > 0) {
+                updateDraggingBall(event.touches[0]);
+            }
+        }
+
+        function handleCellTouchEnd(event) {
+            event.preventDefault();
+            
+            const cell = event.currentTarget;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            
+            const touchDuration = Date.now() - gameState.touchStartTime;
+            
+            // Reset visual feedback
+            if (gameState.dragStartCell) {
+                const startCell = document.querySelector(`.cell[data-row="${gameState.dragStartCell.row}"][data-col="${gameState.dragStartCell.col}"]`);
+                if (startCell) {
+                    startCell.style.transform = '';
+                }
+            }
+            
+            if (gameState.isDragging) {
+                // End dragging
+                endDragging(row, col);
+            } else if (touchDuration < 300 && gameState.touchStartElement === cell) {
+                // Short tap - treat as click
+                if (gameState.selectedBall) {
+                    // Try to move selected ball
+                    if (gameState.board[row][col] === null) {
+                        moveBall(gameState.selectedBall.row, gameState.selectedBall.col, row, col);
+                    } else {
+                        // Select new ball
+                        selectBall(row, col);
+                    }
+                } else {
+                    // Select ball if exists
+                    if (gameState.board[row][col] !== null) {
+                        selectBall(row, col);
+                    }
+                }
+            }
+            
+            gameState.touchStartElement = null;
+        }
+
+        function handleCellTouchCancel(event) {
+            event.preventDefault();
+            cancelDragging();
+            gameState.touchStartElement = null;
+        }
+
+        // Mouse handling for desktop
+        function handleCellMouseDown(event) {
+            if (gameState.gameOver) return;
+            
+            const cell = event.currentTarget;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            
+            if (gameState.board[row][col] !== null) {
+                // Start dragging
+                gameState.isDragging = true;
+                gameState.dragStartCell = {row, col};
+                startDragging(row, col, event);
+                
+                // Visual feedback
+                cell.style.transform = 'scale(0.95)';
+            }
+        }
+
+        function handleMouseMove(event) {
+            if (!gameState.isDragging) return;
+            updateDraggingBall(event);
+        }
+
+        function handleMouseUp(event) {
+            if (!gameState.isDragging) return;
+            
+            // Find the cell under the cursor
+            const cell = document.elementFromPoint(event.clientX, event.clientY);
+            if (cell && cell.classList.contains('cell')) {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                endDragging(row, col);
+            } else {
+                cancelDragging();
+            }
+        }
+
+        function handleGlobalTouchMove(event) {
+            if (!gameState.isDragging) return;
+            event.preventDefault();
+            
+            if (event.touches.length > 0) {
+                updateDraggingBall(event.touches[0]);
+            }
+        }
+
+        function handleGlobalTouchEnd(event) {
+            if (!gameState.isDragging) return;
+            event.preventDefault();
+            
+            // Find the cell under the touch
+            if (event.changedTouches.length > 0) {
+                const touch = event.changedTouches[0];
+                const cell = document.elementFromPoint(touch.clientX, touch.clientY);
+                if (cell && cell.classList.contains('cell')) {
+                    const row = parseInt(cell.dataset.row);
+                    const col = parseInt(cell.dataset.col);
+                    endDragging(row, col);
+                } else {
+                    cancelDragging();
+                }
+            }
+        }
+
+        // Start dragging a ball
+        function startDragging(row, col, event) {
+            const ballColor = gameState.board[row][col];
+            
+            // Create dragging ball
+            gameState.draggingBall = document.createElement('div');
+            gameState.draggingBall.className = 'dragging-ball';
+            gameState.draggingBall.style.background = COLORS[ballColor];
+            gameState.draggingBall.style.left = event.clientX + 'px';
+            gameState.draggingBall.style.top = event.clientY + 'px';
+            document.body.appendChild(gameState.draggingBall);
+            
+            // Hide original ball
+            const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            const ball = cell.querySelector('.ball');
+            if (ball) {
+                ball.style.opacity = '0.3';
+            }
+            
+            if (gameState.soundEnabled) {
+                playSelectSound();
+            }
+        }
+
+        // Update dragging ball position
+        function updateDraggingBall(event) {
+            if (!gameState.draggingBall) return;
+            
+            gameState.draggingBall.style.left = event.clientX + 'px';
+            gameState.draggingBall.style.top = event.clientY + 'px';
+            
+            // Highlight possible target cells
+            highlightPossibleTargets();
         }
 
         // Highlight possible target cells
@@ -971,6 +863,77 @@
             }
         }
 
+        // End dragging
+        function endDragging(targetRow, targetCol) {
+            if (!gameState.dragStartCell || !gameState.draggingBall) {
+                cancelDragging();
+                return;
+            }
+            
+            const {row: startRow, col: startCol} = gameState.dragStartCell;
+            
+            // Remove dragging ball
+            if (gameState.draggingBall) {
+                gameState.draggingBall.remove();
+                gameState.draggingBall = null;
+            }
+            
+            // Reset visual feedback
+            const startCell = document.querySelector(`.cell[data-row="${startRow}"][data-col="${startCol}"]`);
+            if (startCell) {
+                startCell.style.transform = '';
+                const ball = startCell.querySelector('.ball');
+                if (ball) {
+                    ball.style.opacity = '1';
+                }
+            }
+            
+            // Clear highlights
+            document.querySelectorAll('.cell.path').forEach(cell => {
+                cell.classList.remove('path');
+            });
+            
+            // Check if move is valid
+            if (gameState.board[targetRow][targetCol] === null) {
+                moveBall(startRow, startCol, targetRow, targetCol);
+            } else {
+                // Just select the ball
+                selectBall(startRow, startCol);
+            }
+            
+            gameState.isDragging = false;
+            gameState.dragStartCell = null;
+        }
+
+        // Cancel dragging
+        function cancelDragging() {
+            if (gameState.draggingBall) {
+                gameState.draggingBall.remove();
+                gameState.draggingBall = null;
+            }
+            
+            // Reset visual feedback
+            if (gameState.dragStartCell) {
+                const {row, col} = gameState.dragStartCell;
+                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    cell.style.transform = '';
+                    const ball = cell.querySelector('.ball');
+                    if (ball) {
+                        ball.style.opacity = '1';
+                    }
+                }
+            }
+            
+            // Clear highlights
+            document.querySelectorAll('.cell.path').forEach(cell => {
+                cell.classList.remove('path');
+            });
+            
+            gameState.isDragging = false;
+            gameState.dragStartCell = null;
+        }
+
         // Select a ball
         function selectBall(row, col) {
             // Clear previous selection
@@ -980,10 +943,8 @@
             
             // Select new ball
             const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-            if (cell) {
-                cell.classList.add('selected');
-                gameState.selectedBall = {row, col};
-            }
+            cell.classList.add('selected');
+            gameState.selectedBall = {row, col};
         }
 
         // Move ball from one position to another
@@ -1024,41 +985,47 @@
                 gameState.moves++;
                 updateDifficulty();
                 
-                playMoveSound();
+                if (gameState.soundEnabled) {
+                    playMoveSound();
+                }
             });
         }
 
         // Find path using BFS
         function findPath(startRow, startCol, endRow, endCol) {
-            if (gameState.board[endRow][endCol] !== null) return null;
-            
-            const queue = [[startRow, startCol, []]];
-            const visited = new Set();
-            visited.add(`${startRow},${startCol}`);
-            
+            const visited = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+            const queue = [{row: startRow, col: startCol, path: []}];
             const directions = [
-                [-1, 0], [1, 0], [0, -1], [0, 1]
+                {dr: -1, dc: 0}, // up
+                {dr: 1, dc: 0},  // down
+                {dr: 0, dc: -1}, // left
+                {dr: 0, dc: 1}   // right
             ];
             
+            visited[startRow][startCol] = true;
+            
             while (queue.length > 0) {
-                const [row, col, path] = queue.shift();
+                const current = queue.shift();
                 
-                if (row === endRow && col === endCol) {
-                    return [...path, [row, col]];
+                if (current.row === endRow && current.col === endCol) {
+                    return current.path.concat([{row: endRow, col: endCol}]);
                 }
                 
-                for (const [dr, dc] of directions) {
-                    const newRow = row + dr;
-                    const newCol = col + dc;
+                for (const dir of directions) {
+                    const newRow = current.row + dir.dr;
+                    const newCol = current.col + dir.dc;
                     
                     if (newRow >= 0 && newRow < BOARD_SIZE && 
-                        newCol >= 0 && newCol < BOARD_SIZE) {
+                        newCol >= 0 && newCol < BOARD_SIZE &&
+                        !visited[newRow][newCol] && 
+                        gameState.board[newRow][newCol] === null) {
                         
-                        const key = `${newRow},${newCol}`;
-                        if (!visited.has(key) && gameState.board[newRow][newCol] === null) {
-                            visited.add(key);
-                            queue.push([newRow, newCol, [...path, [row, col]]]);
-                        }
+                        visited[newRow][newCol] = true;
+                        queue.push({
+                            row: newRow,
+                            col: newCol,
+                            path: current.path.concat([{row: current.row, col: current.col}])
+                        });
                     }
                 }
             }
@@ -1066,7 +1033,7 @@
             return null;
         }
 
-        // Animate ball movement along path
+        // Animate ball movement
         function animateBallMovement(path, ballColor, callback) {
             if (path.length < 2) {
                 updateBoardDisplay();
@@ -1074,146 +1041,90 @@
                 return;
             }
             
-            const [startRow, startCol] = path[0];
-            const [endRow, endCol] = path[path.length - 1];
-            
             // Create moving ball element
             const movingBall = document.createElement('div');
             movingBall.className = 'ball moving';
-            movingBall.style.background = COLORS[ballColor];
-            movingBall.style.position = 'absolute';
-            movingBall.style.width = '30px';
-            movingBall.style.height = '30px';
-            movingBall.style.zIndex = '100';
+            movingBall.style.background = ballColor;
+            movingBall.style.position = 'fixed';
+            movingBall.style.zIndex = '999';
+            movingBall.style.width = '40px';
+            movingBall.style.height = '40px';
+            movingBall.style.borderRadius = '50%';
+            movingBall.style.boxShadow = '0 3px 10px rgba(0,0,0,0.5)';
             
             // Get start position
-            const startCell = document.querySelector(`.cell[data-row="${startRow}"][data-col="${startCol}"]`);
+            const startCell = document.querySelector(`.cell[data-row="${path[0].row}"][data-col="${path[0].col}"]`);
             const startRect = startCell.getBoundingClientRect();
-            const boardRect = gameBoard.getBoundingClientRect();
+            movingBall.style.left = (startRect.left + startRect.width/2 - 20) + 'px';
+            movingBall.style.top = (startRect.top + startRect.height/2 - 20) + 'px';
             
-            movingBall.style.left = (startRect.left - boardRect.left + startRect.width/2 - 15) + 'px';
-            movingBall.style.top = (startRect.top - boardRect.top + startRect.height/2 - 15) + 'px';
+            document.body.appendChild(movingBall);
             
-            gameBoard.appendChild(movingBall);
-            
-            // Animate through path
             let currentStep = 1;
             
-            function animateStep() {
+            function moveToNextStep() {
                 if (currentStep >= path.length) {
+                    // Animation complete
                     movingBall.remove();
                     updateBoardDisplay();
                     callback();
                     return;
                 }
                 
-                const [row, col] = path[currentStep];
-                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                const rect = cell.getBoundingClientRect();
+                const targetCell = document.querySelector(`.cell[data-row="${path[currentStep].row}"][data-col="${path[currentStep].col}"]`);
+                const targetRect = targetCell.getBoundingClientRect();
                 
-                movingBall.style.left = (rect.left - boardRect.left + rect.width/2 - 15) + 'px';
-                movingBall.style.top = (rect.top - boardRect.top + rect.height/2 - 15) + 'px';
+                movingBall.style.transition = 'all 0.2s ease';
+                movingBall.style.left = (targetRect.left + targetRect.width/2 - 20) + 'px';
+                movingBall.style.top = (targetRect.top + targetRect.height/2 - 20) + 'px';
                 
                 currentStep++;
-                setTimeout(animateStep, 100);
+                
+                setTimeout(moveToNextStep, 200);
             }
             
-            setTimeout(animateStep, 100);
+            setTimeout(moveToNextStep, 50);
         }
 
-        // Find lines starting from position
+        // Find lines of same color
         function findLines(row, col) {
             const color = gameState.board[row][col];
             if (color === null) return [];
             
             const lines = [];
+            const directions = [
+                {dr: 0, dc: 1},   // horizontal
+                {dr: 1, dc: 0},   // vertical
+                {dr: 1, dc: 1},   // diagonal down-right
+                {dr: 1, dc: -1}   // diagonal down-left
+            ];
             
-            // Check horizontal
-            let line = [[row, col]];
-            // Left
-            for (let c = col - 1; c >= 0; c--) {
-                if (gameState.board[row][c] === color) {
-                    line.unshift([row, c]);
-                } else {
-                    break;
+            for (const dir of directions) {
+                const line = [{row, col}];
+                
+                // Check in positive direction
+                let r = row + dir.dr;
+                let c = col + dir.dc;
+                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && 
+                       gameState.board[r][c] === color) {
+                    line.push({row: r, col: c});
+                    r += dir.dr;
+                    c += dir.dc;
                 }
-            }
-            // Right
-            for (let c = col + 1; c < BOARD_SIZE; c++) {
-                if (gameState.board[row][c] === color) {
-                    line.push([row, c]);
-                } else {
-                    break;
+                
+                // Check in negative direction
+                r = row - dir.dr;
+                c = col - dir.dc;
+                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && 
+                       gameState.board[r][c] === color) {
+                    line.unshift({row: r, col: c});
+                    r -= dir.dr;
+                    c -= dir.dc;
                 }
-            }
-            if (line.length >= LINE_LENGTH) {
-                lines.push(line);
-            }
-            
-            // Check vertical
-            line = [[row, col]];
-            // Up
-            for (let r = row - 1; r >= 0; r--) {
-                if (gameState.board[r][col] === color) {
-                    line.unshift([r, col]);
-                } else {
-                    break;
+                
+                if (line.length >= LINE_LENGTH) {
+                    lines.push(line);
                 }
-            }
-            // Down
-            for (let r = row + 1; r < BOARD_SIZE; r++) {
-                if (gameState.board[r][col] === color) {
-                    line.push([r, col]);
-                } else {
-                    break;
-                }
-            }
-            if (line.length >= LINE_LENGTH) {
-                lines.push(line);
-            }
-            
-            // Check diagonal 1 (top-left to bottom-right)
-            line = [[row, col]];
-            // Top-left
-            for (let r = row - 1, c = col - 1; r >= 0 && c >= 0; r--, c--) {
-                if (gameState.board[r][c] === color) {
-                    line.unshift([r, c]);
-                } else {
-                    break;
-                }
-            }
-            // Bottom-right
-            for (let r = row + 1, c = col + 1; r < BOARD_SIZE && c < BOARD_SIZE; r++, c++) {
-                if (gameState.board[r][c] === color) {
-                    line.push([r, c]);
-                } else {
-                    break;
-                }
-            }
-            if (line.length >= LINE_LENGTH) {
-                lines.push(line);
-            }
-            
-            // Check diagonal 2 (top-right to bottom-left)
-            line = [[row, col]];
-            // Top-right
-            for (let r = row - 1, c = col + 1; r >= 0 && c < BOARD_SIZE; r--, c++) {
-                if (gameState.board[r][c] === color) {
-                    line.unshift([r, c]);
-                } else {
-                    break;
-                }
-            }
-            // Bottom-left
-            for (let r = row + 1, c = col - 1; r < BOARD_SIZE && c >= 0; r++, c--) {
-                if (gameState.board[r][c] === color) {
-                    line.push([r, c]);
-                } else {
-                    break;
-                }
-            }
-            if (line.length >= LINE_LENGTH) {
-                lines.push(line);
             }
             
             return lines;
@@ -1221,52 +1132,56 @@
 
         // Explode lines
         function explodeLines(lines) {
-            const uniquePositions = new Set();
-            let totalBalls = 0;
-            
-            // Collect unique positions
+            const allBalls = new Set();
             lines.forEach(line => {
-                line.forEach(([row, col]) => {
-                    uniquePositions.add(`${row},${col}`);
+                line.forEach(({row, col}) => {
+                    allBalls.add(`${row},${col}`);
                 });
             });
             
-            totalBalls = uniquePositions.size;
-            
-            // Calculate score
-            const lineScore = totalBalls * SCORE_PER_BALL * SCORE_MULTIPLIER;
-            gameState.score += lineScore;
+            const ballsToRemove = Array.from(allBalls).map(str => {
+                const [row, col] = str.split(',').map(Number);
+                return {row, col};
+            });
             
             // Animate explosion
-            uniquePositions.forEach(pos => {
-                const [row, col] = pos.split(',').map(Number);
+            ballsToRemove.forEach(({row, col}) => {
                 const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
                 const ball = cell.querySelector('.ball');
-                
                 if (ball) {
                     ball.classList.add('exploding');
-                    setTimeout(() => {
-                        gameState.board[row][col] = null;
-                        updateBoardDisplay();
-                    }, 500);
                 }
             });
             
-            playExplodeSound();
+            // Calculate score
+            const scoreIncrease = ballsToRemove.length * SCORE_PER_BALL * SCORE_MULTIPLIER;
+            gameState.score += scoreIncrease;
             
-            // Update score after animation
+            if (gameState.soundEnabled) {
+                playExplosionSound(ballsToRemove.length);
+            }
+            
+            // Remove balls after animation
             setTimeout(() => {
+                ballsToRemove.forEach(({row, col}) => {
+                    gameState.board[row][col] = null;
+                });
+                
+                updateBoardDisplay();
                 updateUI();
                 
-                // Check for more lines (cascading)
+                // Check for chain reactions
                 const newLines = [];
+                // Check all balls that might have formed new lines
                 for (let row = 0; row < BOARD_SIZE; row++) {
                     for (let col = 0; col < BOARD_SIZE; col++) {
                         if (gameState.board[row][col] !== null) {
-                            const linesAtPos = findLines(row, col);
-                            linesAtPos.forEach(line => {
-                                if (line.length >= LINE_LENGTH) {
-                                    newLines.push(line);
+                            const lines = findLines(row, col);
+                            lines.forEach(line => {
+                                // Check if this line hasn't been counted yet
+                                const lineKey = line.map(p => `${p.row},${p.col}`).sort().join('|');
+                                if (!newLines.some(l => l.key === lineKey)) {
+                                    newLines.push({line, key: lineKey});
                                 }
                             });
                         }
@@ -1274,109 +1189,58 @@
                 }
                 
                 if (newLines.length > 0) {
-                    explodeLines(newLines);
+                    // Chain reaction
+                    setTimeout(() => {
+                        explodeLines(newLines.map(nl => nl.line));
+                    }, 300);
                 } else {
                     // Place next balls
                     placeNextBalls();
                 }
-            }, 600);
+            }, 500);
         }
 
         // Place next balls
         function placeNextBalls() {
-            let placed = 0;
+            let placedAll = true;
+            
             gameState.nextBalls.forEach(colorIndex => {
-                if (placeRandomBall()) {
-                    placed++;
+                if (!placeRandomBall()) {
+                    placedAll = false;
                 }
             });
             
-            // Check for lines after placing
-            setTimeout(() => {
-                const lines = [];
-                for (let row = 0; row < BOARD_SIZE; row++) {
-                    for (let col = 0; col < BOARD_SIZE; col++) {
-                        if (gameState.board[row][col] !== null) {
-                            const linesAtPos = findLines(row, col);
-                            linesAtPos.forEach(line => {
-                                if (line.length >= LINE_LENGTH) {
-                                    lines.push(line);
-                                }
-                            });
-                        }
-                    }
-                }
-                
-                if (lines.length > 0) {
-                    explodeLines(lines);
-                } else {
-                    // Generate new next balls
-                    generateNextBalls();
-                    updateUI();
-                    
-                    // Check if game is over
-                    if (!hasValidMoves()) {
-                        endGame();
-                    }
-                }
-            }, 300);
-        }
-
-        // Check if there are valid moves
-        function hasValidMoves() {
-            // Check if there are empty cells
-            let hasEmptyCells = false;
-            for (let row = 0; row < BOARD_SIZE; row++) {
-                for (let col = 0; col < BOARD_SIZE; col++) {
-                    if (gameState.board[row][col] === null) {
-                        hasEmptyCells = true;
-                        break;
-                    }
-                }
-                if (hasEmptyCells) break;
+            if (!placedAll) {
+                endGame();
+                return;
             }
             
-            if (!hasEmptyCells) return false;
-            
-            // Check if any ball can move to any empty cell
+            // Check for lines after placing new balls
+            const newLines = [];
             for (let row = 0; row < BOARD_SIZE; row++) {
                 for (let col = 0; col < BOARD_SIZE; col++) {
                     if (gameState.board[row][col] !== null) {
-                        for (let r2 = 0; r2 < BOARD_SIZE; r2++) {
-                            for (let c2 = 0; c2 < BOARD_SIZE; c2++) {
-                                if (gameState.board[r2][c2] === null) {
-                                    const path = findPath(row, col, r2, c2);
-                                    if (path) return true;
-                                }
+                        const lines = findLines(row, col);
+                        lines.forEach(line => {
+                            const lineKey = line.map(p => `${p.row},${p.col}`).sort().join('|');
+                            if (!newLines.some(l => l.key === lineKey)) {
+                                newLines.push({line, key: lineKey});
                             }
-                        }
+                        });
                     }
                 }
             }
             
-            return false;
-        }
-
-        // Update difficulty
-        function updateDifficulty() {
-            // Increase colors every 15 moves
-            const targetColors = Math.min(MAX_COLORS, INITIAL_COLORS + Math.floor(gameState.moves / 15));
-            
-            if (targetColors > gameState.currentColors) {
-                gameState.currentColors = targetColors;
-                gameState.difficultyProgress = 0;
+            if (newLines.length > 0) {
+                // Auto-explode lines
+                setTimeout(() => {
+                    explodeLines(newLines.map(nl => nl.line));
+                }, 300);
             } else {
-                gameState.difficultyProgress = (gameState.moves % 15) / 15 * 100;
+                // Generate new next balls
+                generateNextBalls();
+                updateUI();
             }
-            
-            // Update difficulty text
-            const difficultyNames = [
-                "5 цветов", "6 цветов", "7 цветов"
-            ];
-            difficultyText.textContent = difficultyNames[gameState.currentColors - 5] || "Максимум";
-            
-            // Update progress bar
-            difficultyProgress.style.width = gameState.difficultyProgress + '%';
         }
 
         // Update UI
@@ -1392,19 +1256,40 @@
             }
         }
 
+        // Update difficulty
+        function updateDifficulty() {
+            // Increase colors every 10 moves
+            const targetColors = Math.min(MAX_COLORS, INITIAL_COLORS + Math.floor(gameState.moves / 10));
+            
+            if (targetColors > gameState.currentColors) {
+                gameState.currentColors = targetColors;
+                gameState.difficultyProgress = 0;
+            } else {
+                gameState.difficultyProgress = (gameState.moves % 10) * 10;
+            }
+            
+            // Update difficulty text
+            const colorNames = ['3 цвета', '4 цвета', '5 цветов', '6 цветов', '7 цветов'];
+            difficultyText.textContent = colorNames[gameState.currentColors - 3] || '5 цветов';
+            
+            // Update progress bar
+            difficultyProgress.style.width = gameState.difficultyProgress + '%';
+        }
+
         // End game
         function endGame() {
             gameState.gameOver = true;
             
-            // Update final scores
             finalScoreElement.textContent = gameState.score;
             finalHighScoreElement.textContent = gameState.highScore;
             
-            // Show game over screen
             setTimeout(() => {
                 gameOverScreen.classList.add('active');
-                playGameOverSound();
             }, 500);
+            
+            if (gameState.soundEnabled) {
+                playGameOverSound();
+            }
         }
 
         // Restart game
@@ -1425,37 +1310,157 @@
                 dragStartCell: null,
                 touchStartTime: 0,
                 touchStartElement: null,
-                lastTouchX: 0,
-                lastTouchY: 0
+                isTouchDevice: gameState.isTouchDevice
             };
             
             gameOverScreen.classList.remove('active');
-            initGame();
+            
+            generateNextBalls();
+            placeInitialBalls();
+            updateUI();
+            updateDifficulty();
         }
 
-        // Event listeners
-        soundToggle.addEventListener('click', () => {
+        // Sound functions
+        function playSelectSound() {
+            if (!gameState.soundEnabled || !window.AudioContext) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.log('Audio error:', e);
+            }
+        }
+
+        function playMoveSound() {
+            if (!gameState.soundEnabled || !window.AudioContext) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(392.00, audioContext.currentTime); // G4
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.08, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.15);
+            } catch (e) {
+                console.log('Audio error:', e);
+            }
+        }
+
+        function playExplosionSound(count) {
+            if (!gameState.soundEnabled || !window.AudioContext) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Higher pitch for more balls
+                const baseFreq = 261.63; // C4
+                const freq = baseFreq * Math.min(2, 1 + (count / 10));
+                
+                oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+                oscillator.type = 'sawtooth';
+                
+                gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log('Audio error:', e);
+            }
+        }
+
+        function playGameOverSound() {
+            if (!gameState.soundEnabled || !window.AudioContext) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(220.00, audioContext.currentTime); // A3
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 1);
+            } catch (e) {
+                console.log('Audio error:', e);
+            }
+        }
+
+        // Toggle sound
+        function toggleSound() {
             gameState.soundEnabled = !gameState.soundEnabled;
             soundToggle.innerHTML = gameState.soundEnabled ? 
                 '<span>🔊</span> ЗВУК ВКЛ' : 
                 '<span>🔇</span> ЗВУК ВЫКЛ';
-        });
+            soundToggle.classList.toggle('sound', gameState.soundEnabled);
+        }
 
+        // Event listeners
+        soundToggle.addEventListener('click', toggleSound);
         restartBtn.addEventListener('click', restartGame);
         gameOverRestart.addEventListener('click', restartGame);
 
         // Prevent context menu on long press
         document.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
+            if (gameState.isTouchDevice) {
+                e.preventDefault();
+            }
         });
 
-        // Prevent text selection
-        document.addEventListener('selectstart', (e) => {
-            e.preventDefault();
-        });
-
-        // Initialize game on load
-        window.addEventListener('load', initGame);
+        // Initialize game when page loads
+        window.addEventListener('DOMContentLoaded', initGame);
+        // Also initialize if already loaded
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(initGame, 100);
+        }
     </script>
 </body>
 </html>
