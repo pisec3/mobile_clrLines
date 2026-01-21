@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Colour Lines - Игра Цветные Линии</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 15px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcf7f, #4d96ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+            color: #a0a0ff;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .next-balls {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 10px 0;
+        }
+
+        .next-ball {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #4d96ff, #6bcf7f);
+            color: white;
+            box-shadow: 0 4px 15px rgba(77, 150, 255, 0.3);
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(77, 150, 255, 0.4);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .control-btn.sound {
+            background: linear-gradient(135deg, #ff6b6b, #ffd93d);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 4px;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .cell:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .cell.selected {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+        }
+
+        .cell.path {
+            background: rgba(100, 200, 255, 0.1);
+        }
+
+        .ball {
+            width: 85%;
+            height: 85%;
+            border-radius: 50%;
+            box-shadow: 
+                inset 0 -3px 5px rgba(0, 0, 0, 0.3),
+                inset 0 3px 5px rgba(255, 255, 255, 0.2),
+                0 4px 8px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+        }
+
+        .ball:hover {
+            transform: scale(1.05);
+        }
+
+        .ball.moving {
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        .ball.exploding {
+            animation: explode 0.5s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.7; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .game-over.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .game-over h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+
+        .game-over p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+
+        .restart-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #6bcf7f, #4d96ff);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(77, 150, 255, 0.4);
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(77, 150, 255, 0.5);
+        }
+
+        .difficulty-indicator {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #a0a0ff;
+        }
+
+        .difficulty-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .difficulty-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #6bcf7f, #ffd93d, #ff6b6b);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .instructions h3 {
+            color: #a0a0ff;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .stat-value {
+                font-size: 1.3rem;
+            }
+            
+            .next-ball {
+                width: 25px;
+                height: 25px;
+            }
+            
+            .control-btn {
+                padding: 10px;
+                font-size: 0.9rem;
+            }
+            
+            .game-board {
+                gap: 3px;
+                padding: 8px;
+            }
+            
+            .cell {
+                border-radius: 4px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .header h1 {
+                font-size: 1.3rem;
+            }
+            
+            .stats-bar {
+                padding: 10px;
+            }
+            
+            .stat-value {
+                font-size: 1.2rem;
+            }
+            
+            .game-board {
+                gap: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Добро пожаловать в игру Цветные Линии!</h1>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">СЧЁТ</div>
+                <div class="stat-value" id="score">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">СЛЕДУЮЩИЕ</div>
+                <div class="next-balls" id="nextBalls">
+                    <!-- Next balls will be inserted here -->
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">РЕКОРД</div>
+                <div class="stat-value" id="highScore">0</div>
+            </div>
+        </div>
+
+        <div class="difficulty-indicator">
+            <div>Сложность: <span id="difficultyText">5 цветов</span></div>
+            <div class="difficulty-bar">
+                <div class="difficulty-progress" id="difficultyProgress" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn sound" id="soundToggle">
+                <span>🔊</span> ЗВУК ВКЛ
+            </button>
+            <button class="control-btn" id="restartBtn">
+                <span>🔄</span> НАЧАТЬ ЗАНОВО
+            </button>
+        </div>
+
+        <div class="game-board" id="gameBoard">
+            <!-- Game board will be generated here -->
+        </div>
+
+        <div class="instructions">
+            <h3>🎯 Как играть:</h3>
+            <p>1. Нажмите на шарик, чтобы выбрать его</p>
+            <p>2. Нажмите на пустую клетку, чтобы переместить шарик</p>
+            <p>3. Собирайте линии из 5+ одинаковых шариков</p>
+            <p>4. Каждый ход добавляет 3 новых шарика</p>
+            <p>5. Сложность увеличивается со временем</p>
+        </div>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <h2>ИГРА ОКОНЧЕНА!</h2>
+        <p>Ваш счёт: <span id="finalScore">0</span></p>
+        <p>Рекорд: <span id="finalHighScore">0</span></p>
+        <button class="restart-btn" id="gameOverRestart">ИГРАТЬ СНОВА</button>
+    </div>
+
+    <audio id="bgMusic" loop>
+        <source src="https://assets.mixkit.co/music/preview/mixkit-game-show-suspense-waiting-667.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="moveSound">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-unlock-game-notification-253.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="explodeSound">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="selectSound">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-select-click-1109.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // Game constants
+        const BOARD_SIZE = 10;
+        const COLORS = [
+            '#FF6B6B', // Красный
+            '#FFD93D', // Жёлтый
+            '#6BCF7F', // Зелёный
+            '#4D96FF', // Синий
+            '#9D4EDD', // Фиолетовый
+            '#FF8E53', // Оранжевый
+            '#00CED1'  // Бирюзовый
+        ];
+        const INITIAL_COLORS = 5;
+        const MAX_COLORS = 7;
+        const LINE_LENGTH = 5;
+        const SCORE_PER_BALL = 10;
+        const SCORE_MULTIPLIER = 2;
+
+        // Game state
+        let gameState = {
+            board: Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null)),
+            score: 0,
+            highScore: localStorage.getItem('colourLinesHighScore') || 0,
+            selectedBall: null,
+            nextBalls: [],
+            gameOver: false,
+            soundEnabled: true,
+            currentColors: INITIAL_COLORS,
+            moves: 0,
+            difficultyProgress: 0
+        };
+
+        // DOM elements
+        const gameBoard = document.getElementById('gameBoard');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('highScore');
+        const nextBallsElement = document.getElementById('nextBalls');
+        const soundToggle = document.getElementById('soundToggle');
+        const restartBtn = document.getElementById('restartBtn');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const finalHighScoreElement = document.getElementById('finalHighScore');
+        const gameOverRestart = document.getElementById('gameOverRestart');
+        const difficultyText = document.getElementById('difficultyText');
+        const difficultyProgress = document.getElementById('difficultyProgress');
+
+        // Audio elements
+        const bgMusic = document.getElementById('bgMusic');
+        const moveSound = document.getElementById('moveSound');
+        const explodeSound = document.getElementById('explodeSound');
+        const selectSound = document.getElementById('selectSound');
+
+        // Initialize game
+        function initGame() {
+            createBoard();
+            generateNextBalls();
+            placeInitialBalls();
+            updateUI();
+            updateDifficulty();
+            
+            if (gameState.soundEnabled) {
+                bgMusic.volume = 0.3;
+                bgMusic.play().catch(e => console.log("Autoplay prevented:", e));
+            }
+        }
+
+        // Create game board
+        function createBoard() {
+            gameBoard.innerHTML = '';
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    // Touch events for mobile
+                    cell.addEventListener('touchstart', handleCellTouchStart);
+                    cell.addEventListener('touchend', handleCellTouchEnd);
+                    cell.addEventListener('click', handleCellClick);
+                    
+                    gameBoard.appendChild(cell);
+                }
+            }
+        }
+
+        // Generate next balls
+        function generateNextBalls() {
+            gameState.nextBalls = [];
+            for (let i = 0; i < 3; i++) {
+                const colorIndex = Math.floor(Math.random() * gameState.currentColors);
+                gameState.nextBalls.push(colorIndex);
+            }
+            updateNextBallsDisplay();
+        }
+
+        // Update next balls display
+        function updateNextBallsDisplay() {
+            nextBallsElement.innerHTML = '';
+            gameState.nextBalls.forEach(colorIndex => {
+                const ball = document.createElement('div');
+                ball.className = 'next-ball';
+                ball.style.background = COLORS[colorIndex];
+                nextBallsElement.appendChild(ball);
+            });
+        }
+
+        // Place initial balls
+        function placeInitialBalls() {
+            for (let i = 0; i < 5; i++) {
+                placeRandomBall();
+            }
+        }
+
+        // Place a random ball
+        function placeRandomBall() {
+            const emptyCells = [];
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (!gameState.board[row][col]) {
+                        emptyCells.push({row, col});
+                    }
+                }
+            }
+            
+            if (emptyCells.length === 0) {
+                endGame();
+                return;
+            }
+            
+            const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            const colorIndex = Math.floor(Math.random() * gameState.currentColors);
+            gameState.board[randomCell.row][randomCell.col] = colorIndex;
+            updateBoardDisplay();
+        }
+
+        // Update board display
+        function updateBoardDisplay() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                const ballColor = gameState.board[row][col];
+                
+                cell.innerHTML = '';
+                cell.classList.remove('selected', 'path');
+                
+                if (ballColor !== null) {
+                    const ball = document.createElement('div');
+                    ball.className = 'ball';
+                    ball.style.background = COLORS[ballColor];
+                    cell.appendChild(ball);
+                }
+            });
+        }
+
+        // Handle cell click
+        function handleCellClick(event) {
+            if (gameState.gameOver) return;
+            
+            const cell = event.currentTarget;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            
+            if (gameState.selectedBall) {
+                // Try to move selected ball
+                if (gameState.board[row][col] === null) {
+                    moveBall(gameState.selectedBall.row, gameState.selectedBall.col, row, col);
+                } else {
+                    // Select new ball
+                    selectBall(row, col);
+                }
+            } else {
+                // Select ball if exists
+                if (gameState.board[row][col] !== null) {
+                    selectBall(row, col);
+                }
+            }
+        }
+
+        // Touch handling for mobile
+        let touchStartTime;
+        let touchStartCell;
+
+        function handleCellTouchStart(event) {
+            event.preventDefault();
+            const cell = event.currentTarget;
+            touchStartCell = cell;
+            touchStartTime = Date.now();
+            
+            // Visual feedback
+            cell.style.transform = 'scale(0.95)';
+        }
+
+        function handleCellTouchEnd(event) {
+            event.preventDefault();
+            const cell = event.currentTarget;
+            const touchDuration = Date.now() - touchStartTime;
+            
+            // Reset visual feedback
+            cell.style.transform = '';
+            
+            // Handle as click for short taps
+            if (touchDuration < 300 && cell === touchStartCell) {
+                handleCellClick({currentTarget: cell});
+            }
+        }
+
+        // Select a ball
+        function selectBall(row, col) {
+            // Clear previous selection
+            document.querySelectorAll('.cell.selected').forEach(cell => {
+                cell.classList.remove('selected');
+            });
+            
+            // Select new ball
+            const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            cell.classList.add('selected');
+            gameState.selectedBall = {row, col};
+            
+            if (gameState.soundEnabled) {
+                selectSound.currentTime = 0;
+                selectSound.play();
+            }
+        }
+
+        // Move ball from one position to another
+        function moveBall(fromRow, fromCol, toRow, toCol) {
+            const path = findPath(fromRow, fromCol, toRow, toCol);
+            
+            if (!path) {
+                // Invalid move
+                gameState.selectedBall = null;
+                document.querySelectorAll('.cell.selected').forEach(cell => {
+                    cell.classList.remove('selected');
+                });
+                return;
+            }
+            
+            // Move the ball
+            const ballColor = gameState.board[fromRow][fromCol];
+            gameState.board[fromRow][fromCol] = null;
+            gameState.board[toRow][toCol] = ballColor;
+            
+            // Animate movement
+            animateBallMovement(path, ballColor, () => {
+                gameState.selectedBall = null;
+                document.querySelectorAll('.cell.selected').forEach(cell => {
+                    cell.classList.remove('selected');
+                });
+                
+                // Check for lines
+                const lines = findLines(toRow, toCol);
+                if (lines.length > 0) {
+                    explodeLines(lines);
+                } else {
+                    // Place next balls
+                    placeNextBalls();
+                }
+                
+                // Update difficulty
+                gameState.moves++;
+                updateDifficulty();
+                
+                if (gameState.soundEnabled) {
+                    moveSound.currentTime = 0;
+                    moveSound.play();
+                }
+            });
+        }
+
+        // Find path using BFS
+        function findPath(startRow, startCol, endRow, endCol) {
+            const visited = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+            const queue = [{row: startRow, col: startCol, path: []}];
+            const directions = [
+                {dr: -1, dc: 0}, // up
+                {dr: 1, dc: 0},  // down
+                {dr: 0, dc: -1}, // left
+                {dr: 0, dc: 1}   // right
+            ];
+            
+            visited[startRow][startCol] = true;
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                
+                if (current.row === endRow && current.col === endCol) {
+                    return current.path.concat([{row: endRow, col: endCol}]);
+                }
+                
+                for (const dir of directions) {
+                    const newRow = current.row + dir.dr;
+                    const newCol = current.col + dir.dc;
+                    
+                    if (newRow >= 0 && newRow < BOARD_SIZE && 
+                        newCol >= 0 && newCol < BOARD_SIZE &&
+                        !visited[newRow][newCol] && 
+                        gameState.board[newRow][newCol] === null) {
+                        
+                        visited[newRow][newCol] = true;
+                        queue.push({
+                            row: newRow,
+                            col: newCol,
+                            path: current.path.concat([{row: current.row, col: current.col}])
+                        });
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        // Animate ball movement
+        function animateBallMovement(path, colorIndex, callback) {
+            if (path.length < 2) {
+                callback();
+                return;
+            }
+            
+            const cells = path.map(pos => 
+                document.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`)
+            );
+            
+            // Create moving ball
+            const movingBall = document.createElement('div');
+            movingBall.className = 'ball moving';
+            movingBall.style.background = COLORS[colorIndex];
+            movingBall.style.position = 'absolute';
+            movingBall.style.width = '40px';
+            movingBall.style.height = '40px';
+            movingBall.style.zIndex = '100';
+            
+            const startCell = cells[0];
+            const startRect = startCell.getBoundingClientRect();
+            const boardRect = gameBoard.getBoundingClientRect();
+            
+            movingBall.style.left = (startRect.left - boardRect.left + startRect.width/2 - 20) + 'px';
+            movingBall.style.top = (startRect.top - boardRect.top + startRect.height/2 - 20) + 'px';
+            
+            gameBoard.appendChild(movingBall);
+            
+            let currentStep = 1;
+            
+            function moveToNextStep() {
+                if (currentStep >= path.length) {
+                    movingBall.remove();
+                    updateBoardDisplay();
+                    callback();
+                    return;
+                }
+                
+                const targetCell = cells[currentStep];
+                const targetRect = targetCell.getBoundingClientRect();
+                
+                movingBall.style.transition = 'all 0.2s ease';
+                movingBall.style.left = (targetRect.left - boardRect.left + targetRect.width/2 - 20) + 'px';
+                movingBall.style.top = (targetRect.top - boardRect.top + targetRect.height/2 - 20) + 'px';
+                
+                currentStep++;
+                setTimeout(moveToNextStep, 200);
+            }
+            
+            setTimeout(moveToNextStep, 50);
+        }
+
+        // Find lines of same color
+        function findLines(row, col) {
+            const color = gameState.board[row][col];
+            if (color === null) return [];
+            
+            const lines = [];
+            const directions = [
+                {dr: 0, dc: 1},   // horizontal
+                {dr: 1, dc: 0},   // vertical
+                {dr: 1, dc: 1},   // diagonal down-right
+                {dr: 1, dc: -1}   // diagonal down-left
+            ];
+            
+            for (const dir of directions) {
+                let line = [{row, col}];
+                
+                // Check forward direction
+                let r = row + dir.dr;
+                let c = col + dir.dc;
+                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && 
+                       gameState.board[r][c] === color) {
+                    line.push({row: r, col: c});
+                    r += dir.dr;
+                    c += dir.dc;
+                }
+                
+                // Check backward direction
+                r = row - dir.dr;
+                c = col - dir.dc;
+                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && 
+                       gameState.board[r][c] === color) {
+                    line.unshift({row: r, col: c});
+                    r -= dir.dr;
+                    c -= dir.dc;
+                }
+                
+                if (line.length >= LINE_LENGTH) {
+                    lines.push(line);
+                }
+            }
+            
+            return lines;
+        }
+
+        // Explode lines
+        function explodeLines(lines) {
+            const allBalls = new Set();
+            lines.forEach(line => {
+                line.forEach(pos => {
+                    allBalls.add(`${pos.row},${pos.col}`);
+                });
+            });
+            
+            // Calculate score
+            const ballsExploded = allBalls.size;
+            const points = ballsExploded * SCORE_PER_BALL * SCORE_MULTIPLIER;
+            gameState.score += points;
+            
+            // Animate explosion
+            allBalls.forEach(posStr => {
+                const [row, col] = posStr.split(',').map(Number);
+                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                const ball = cell.querySelector('.ball');
+                
+                if (ball) {
+                    ball.classList.add('exploding');
+                    setTimeout(() => {
+                        gameState.board[row][col] = null;
+                        updateBoardDisplay();
+                    }, 500);
+                }
+            });
+            
+            if (gameState.soundEnabled) {
+                explodeSound.currentTime = 0;
+                explodeSound.play();
+            }
+            
+            // Update score and check for high score
+            updateUI();
+            
+            // Place next balls after explosion
+            setTimeout(() => {
+                placeNextBalls();
+            }, 600);
+        }
+
+        // Place next balls
+        function placeNextBalls() {
+            let placed = 0;
+            gameState.nextBalls.forEach(colorIndex => {
+                if (placeRandomBall()) {
+                    placed++;
+                }
+            });
+            
+            if (placed === 3) {
+                generateNextBalls();
+                
+                // Check for game over
+                if (!hasValidMoves()) {
+                    endGame();
+                }
+            } else {
+                endGame();
+            }
+        }
+
+        // Check if there are valid moves
+        function hasValidMoves() {
+            // Check for empty cells
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (gameState.board[row][col] === null) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Update difficulty
+        function updateDifficulty() {
+            const progress = Math.min(gameState.moves / 50, 1);
+            gameState.difficultyProgress = progress;
+            
+            const newColors = INITIAL_COLORS + Math.floor(progress * (MAX_COLORS - INITIAL_COLORS));
+            if (newColors > gameState.currentColors) {
+                gameState.currentColors = newColors;
+            }
+            
+            difficultyText.textContent = `${gameState.currentColors} цветов`;
+            difficultyProgress.style.width = `${progress * 100}%`;
+        }
+
+        // Update UI
+        function updateUI() {
+            scoreElement.textContent = gameState.score;
+            highScoreElement.textContent = gameState.highScore;
+            
+            // Update high score if needed
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                localStorage.setItem('colourLinesHighScore', gameState.highScore);
+                highScoreElement.textContent = gameState.highScore;
+            }
+        }
+
+        // End game
+        function endGame() {
+            gameState.gameOver = true;
+            finalScoreElement.textContent = gameState.score;
+            finalHighScoreElement.textContent = gameState.highScore;
+            gameOverScreen.classList.add('active');
+            
+            if (gameState.soundEnabled) {
+                bgMusic.pause();
+            }
+        }
+
+        // Restart game
+        function restartGame() {
+            gameState = {
+                board: Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null)),
+                score: 0,
+                highScore: localStorage.getItem('colourLinesHighScore') || 0,
+                selectedBall: null,
+                nextBalls: [],
+                gameOver: false,
+                soundEnabled: gameState.soundEnabled,
+                currentColors: INITIAL_COLORS,
+                moves: 0,
+                difficultyProgress: 0
+            };
+            
+            gameOverScreen.classList.remove('active');
+            initGame();
+        }
+
+        // Toggle sound
+        function toggleSound() {
+            gameState.soundEnabled = !gameState.soundEnabled;
+            soundToggle.innerHTML = gameState.soundEnabled ? 
+                '<span>🔊</span> ЗВУК ВКЛ' : '<span>🔇</span> ЗВУК ВЫКЛ';
+            
+            if (gameState.soundEnabled) {
+                bgMusic.volume = 0.3;
+                bgMusic.play().catch(e => console.log("Autoplay prevented:", e));
+            } else {
+                bgMusic.pause();
+            }
+        }
+
+        // Event listeners
+        soundToggle.addEventListener('click', toggleSound);
+        restartBtn.addEventListener('click', restartGame);
+        gameOverRestart.addEventListener('click', restartGame);
+
+        // Initialize game on load
+        window.addEventListener('load', initGame);
+
+        // Prevent context menu on long press
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Handle visibility change for audio
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && gameState.soundEnabled) {
+                bgMusic.pause();
+            } else if (!document.hidden && gameState.soundEnabled && !gameState.gameOver) {
+                bgMusic.play().catch(e => console.log("Autoplay prevented:", e));
+            }
+        });
+    </script>
+</body>
+</html>
